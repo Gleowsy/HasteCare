@@ -1,2 +1,11 @@
+[project]
+name = "hastecare"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "flask",
+    "pandas",
+]
+
 [tool.vercel]
 entrypoint = "api.versipy:app"
