@@ -1,0 +1,4 @@
+{
+  "functions": { "api/versipy.py": { "includeFiles": "{data,public}/**" } },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+}

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HasteCare</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#f3f6f5;--card:#fff;--ink:#14231f;--mute:#5d6f69;--line:#d6e0dc;--brand:#0b6b57;--red:#b3261e;--amb:#a15c00;--grn:#1b6e3c}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1917;--card:#16241f;--ink:#e6f0ec;--mute:#93a8a1;--line:#274039;--brand:#4cc3a6;--red:#ff8a80;--amb:#ffc266;--grn:#7ddc9f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,"Times New Roman",serif}
+main{max-width:640px;margin:0 auto;padding:32px 20px 64px}
+h1{font-size:2rem;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--mute);margin:0 0 24px;font-family:system-ui,sans-serif;font-size:.95rem}
+label{display:block;font:600 .85rem system-ui,sans-serif;margin:14px 0 4px}
+input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font:1rem system-ui,sans-serif}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{font:600 1rem system-ui,sans-serif;border-radius:6px;padding:11px 16px;cursor:pointer;border:1px solid var(--brand)}
+#go{background:var(--brand);color:var(--bg);width:100%;margin-top:18px}
+#loc{background:none;color:var(--brand);margin-top:10px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+#status{margin:24px 0 8px;font:600 1.05rem system-ui,sans-serif}
+.l1{color:var(--red)}.l2{color:var(--amb)}.l3{color:var(--grn)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:12px}
+.card h3{margin:0 0 6px;font-size:1.1rem}
+.meta{color:var(--mute);font:.9rem system-ui,sans-serif}
+.card a{color:var(--brand);font:600 .9rem system-ui,sans-serif}
+#map{height:340px;margin-top:16px;border:1px solid var(--line);border-radius:8px;z-index:0}
+#map[hidden],#map-message[hidden]{display:none}
+#map-message{margin-top:10px}
+.note{color:var(--mute);font:.8rem system-ui,sans-serif;margin-top:28px}
+</style>
+</head>
+<body>
+<main>
+<h1>HasteCare</h1>
+<p class="sub">Tulis keluhan pasien, dapatkan 3 rumah sakit yang paling sesuai.</p>
+<label for="k">Keluhan atau gejala</label>
+<input id="k" placeholder="Contoh: patah tulang, sesak napas">
+<div class="row">
+<div><label for="lat">Latitude</label><input id="lat" value="27.3364"></div>
+<div><label for="lon">Longitude</label><input id="lon" value="-82.5307"></div>
+</div>
+<button id="loc" type="button">Pakai lokasi saya</button>
+<button id="go" type="button">Cari rumah sakit</button>
+<div id="status" role="status"></div>
+<div id="map" role="application" aria-label="Peta rumah sakit terdekat" hidden></div>
+<p id="map-message" class="meta" role="status" hidden></p>
+<div id="out"></div>
+<p class="note">Jumlah bed adalah data simulasi untuk demo, bukan data rumah sakit sebenarnya.</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let map, mapMarkers;
+function showMap(userLat,userLon,hospitals){
+  const mapElement=$("map"), message=$("map-message");
+  message.hidden=true;
+  if(!window.L){
+    mapElement.hidden=true;
+    message.textContent="Peta interaktif tidak dapat dimuat. Pastikan koneksi internet tersedia.";
+    message.hidden=false;
+    return;
+  }
+  mapElement.hidden=false;
+  if(!map){
+    map=L.map(mapElement);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+    }).addTo(map);
+    mapMarkers=L.layerGroup().addTo(map);
+  }
+  mapMarkers.clearLayers();
+  const points=[];
+  const userPoint=[userLat,userLon];
+  points.push(userPoint);
+  L.circleMarker(userPoint,{radius:8,color:"#1769aa",fillColor:"#42a5f5",fillOpacity:1})
+    .bindPopup("Lokasi pencarian").addTo(mapMarkers);
+  hospitals.forEach(h=>{
+    const point=[h.lat,h.lon];
+    points.push(point);
+    const popup=document.createElement("div");
+    const name=document.createElement("strong");
+    name.textContent=h.nama;
+    popup.append(name,document.createElement("br"),document.createTextNode(`${h.jarak} km · ${h.bed_kosong} bed kosong (simulasi)`));
+    L.marker(point).bindPopup(popup).addTo(mapMarkers);
+  });
+  if(points.length===1) map.setView(userPoint,13);
+  else map.fitBounds(L.latLngBounds(points),{padding:[24,24],maxZoom:13});
+  setTimeout(()=>map.invalidateSize(),0);
+}
+$("loc").onclick=()=>navigator.geolocation?.getCurrentPosition(p=>{$("lat").value=p.coords.latitude.toFixed(4);$("lon").value=p.coords.longitude.toFixed(4)},()=>{$("status").textContent="Lokasi tidak bisa dibaca. Isi latitude dan longitude manual."});
+$("go").onclick=async()=>{
+  $("out").innerHTML="";$("map").hidden=true;$("map-message").hidden=true;$("status").className="";$("status").textContent="Mencari...";
+  try{
+    const r=await fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lat:$("lat").value,lon:$("lon").value,keluhan:$("k").value})});
+    const d=await r.json();
+    if(!r.ok){$("status").textContent=d.error;return}
+    $("status").className="l"+d.level;$("status").textContent=d.label;
+    if(!d.hasil.length){$("out").innerHTML='<p class="meta">Tidak ada rumah sakit yang sesuai dalam radius 100 km.</p>';return}
+    showMap(Number($("lat").value),Number($("lon").value),d.hasil);
+    $("out").innerHTML=d.hasil.map(h=>`<div class="card"><h3>${h.nama.replace(/[<>&]/g,"")}</h3><div class="meta">${h.jarak} km · ${h.bed_kosong} bed kosong (simulasi) · ${h.tipe.replace(/[<>&]/g,"")}</div><a href="https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lon}" target="_blank" rel="noopener">Buka di peta</a></div>`).join("");
+  }catch(e){$("status").textContent="Gagal menghubungi server. Coba lagi."}
+};
+</script>
+</body>
+</html>
